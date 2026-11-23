@@ -15,7 +15,7 @@ Last updated: 2026-11-23
 | 1 | Project setup | Done |
 | 2 | Core contract (no swaps) | Done |
 | 3 | Oracle + AMM integration | Done |
-| 4 | Fork test suite | Not started |
+| 4 | Fork test suite | Done |
 | 5 | Review & hardening | Not started |
 | 6 | Deploy & on-chain submit | Not started |
 | 7 | Package off-chain submission | Not started |
@@ -48,16 +48,18 @@ Last updated: 2026-11-23
 - [x] `salaryAvailable` in ETH mode
 - [x] ETH tests: oracle-based view, payout within bounds, large swap, slippage revert, 1% tolerance, invalid price, currency switch, post-termination, reentrancy attack, receive guard (37 tests total)
 
-### 4. Fork test suite
-- [ ] Access control reverts (`NotAuthorized`) for every restricted function
-- [ ] Register / double-register / terminate / terminate non-active
-- [ ] Accrual: partial weeks, multiple weeks, stop at termination
-- [ ] Re-registration keeps old balance and resets currency
-- [ ] USDC and ETH withdrawals; events via `vm.expectEmit`
-- [ ] Slippage revert (mock oracle price)
-- [ ] Reentrancy attempt via malicious receiver
-- [ ] Unknown address views return zeros
-- [ ] Fuzz tests on accrual
+### 4. Fork test suite (done)
+- [x] Split into `test/utils/HumanResourcesBase.sol` (fork setup, helpers) + core, ETH and fuzz suites
+- [x] Access control reverts (`NotAuthorized`) for every restricted function, incl. manager calling employee functions
+- [x] Register / double-register / terminate / terminate non-active; failed calls leave count unchanged
+- [x] Accrual: partial weeks, multiple weeks, rounding to USDC units, independent employees, stop at termination
+- [x] Re-registration: keeps balance, resets currency, correct after partial/full withdrawal and many cycles
+- [x] USDC and ETH withdrawals; events checked (incl. no event when nothing is owed)
+- [x] Underfunded contract reverts and keeps balance
+- [x] Slippage revert, 1% tolerance, invalid oracle price, ETH view tracks oracle price
+- [x] Reentrancy attack and ETH-rejecting recipient
+- [x] Fuzz: formula, split withdrawals pay exact total, termination freezes balance, re-registration carry-over, ETH conversion, access control (off-fork)
+- [x] 60 tests passing on the public RPC with no fork cache (`forge test --no-storage-caching`)
 
 ### 5. Review & hardening
 - [ ] Re-check every spec requirement
@@ -77,5 +79,7 @@ Last updated: 2026-11-23
 - [ ] Zip from root, excluding `.git`, `out/`, `cache/`, `CLAUDE.md`, `PROGRESS.md`
 
 ## Notes / decisions
+- Test accounts use `makeAddr("hr-test-*")` labels: `makeAddr("bob")` is an EIP-7702 sweeper on Optimism.
+- Access-control fuzz runs off-fork so random addresses do not hit the public RPC rate limit.
 - Commit directly to `main`.
 - `salaryAvailable` / `SalaryWithdrawn` amounts use currency decimals (USDC 6, ETH 18); internal accounting in USD 18 dp.
