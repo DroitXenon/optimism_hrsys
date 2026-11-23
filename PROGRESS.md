@@ -18,7 +18,7 @@ Last updated: 2026-11-23
 | 4 | Fork test suite | Done |
 | 5 | Review & hardening | Done |
 | 6 | Deploy & on-chain submit | Done |
-| 7 | Package off-chain submission | Not started |
+| 7 | Package off-chain submission | Done (zip built, not yet uploaded) |
 
 ### 1. Project setup (done)
 - [x] Foundry project, `forge-std` v1.17.0, OpenZeppelin v5.1.0
@@ -81,11 +81,12 @@ Last updated: 2026-11-23
 
 **Any change to `src/` from here on requires redeploying and resubmitting.**
 
-### 7. Package off-chain submission
-- [ ] `README.md`: per-function docs + AMM/oracle integration summary
-- [ ] `.env` set to `https://mainnet.optimism.io`
-- [ ] Unzip into a clean dir and confirm `forge build` + `forge test`
-- [ ] Zip from root, excluding `.git`, `out/`, `cache/`, `CLAUDE.md`, `PROGRESS.md`
+### 7. Package off-chain submission (done)
+- [x] `README.md`: deployment, build/test, design, per-function docs, oracle/AMM integration, test summary
+- [x] `.env` set to `https://mainnet.optimism.io`
+- [x] Zip built at `dist/70017_submission.zip` (5.0 MB), project at the zip root, excluding `.git`, `out/`, `cache/`, `CLAUDE.md`, `PROGRESS.md`, the spec PDF
+- [x] Unzipped into a clean dir: `forge build` OK, `forge test --no-storage-caching` 61/61 passing, bytecode identical to the deployed source
+- [ ] Upload the zip to the course submission page
 
 ## Notes / decisions
 - Test accounts use `makeAddr("hr-test-*")` labels: `makeAddr("bob")` is an EIP-7702 sweeper on Optimism.

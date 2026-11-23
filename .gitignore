@@ -21,3 +21,6 @@ docs/
 
 # Foundry broadcast lock files
 *.recovery.lock
+
+# Submission zip build output
+dist/

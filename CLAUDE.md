@@ -20,7 +20,7 @@ forge coverage --report summary --no-match-coverage "test|lib"   # contract cove
 
 `.env` (gitignored; template in `.env.example`) provides `RPC_URL` and `FORK_BLOCK`. Tests must read these via `vm.envString("RPC_URL")` / `vm.envUint("FORK_BLOCK")` and fork with `vm.createSelectFork` — never hard-code the RPC URL. Use an Alchemy/Infura URL locally (public endpoint is slow/rate-limited), but the submitted `.env` must contain `RPC_URL=https://mainnet.optimism.io`.
 
-Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 200 runs; OpenZeppelin v5.1 via `@openzeppelin/contracts/` remapping (`lib/` are git submodules). `README.md` is still Foundry boilerplate (written in Stage 7).
+Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 200 runs; OpenZeppelin v5.1 via `@openzeppelin/contracts/` remapping (`lib/` are git submodules). `README.md` is the submission documentation (per-function docs + oracle/AMM summary); keep it in sync with the contract.
 
 Deployment: `script/Deploy.s.sol` (hrManager = deployer unless `HR_MANAGER` is set) and `script/Submit.s.sol` (`HR_CONTRACT=<addr>`), both run with `--account hr-deployer` (Foundry keystore). Never pass `--verify`. Rehearse on `anvil --fork-url $RPC_URL` first; that fork reports chain ID 10, so delete `broadcast/` afterwards to avoid confusing it with the real deployment.
 
@@ -63,6 +63,14 @@ Deployment: `script/Deploy.s.sol` (hrManager = deployer unless `HR_MANAGER` is s
 ## Submission package
 
 Single zip with Foundry project at its root (not nested), excluding `.git`, `out/`, `cache/`, and this file. Must include `lib/`, `.env` (public RPC URL), `README.md` (per-function docs + AMM/oracle integration summary), `deployed-address.txt` (address only), `submit-transaction.txt` (tx hash only). `forge build` and `forge test` must pass after unzipping.
+
+Build the zip (output in gitignored `dist/`), then verify it from a clean unzip with `forge build` and `forge test --no-storage-caching`:
+
+```shell
+rsync -a --exclude='.git' --exclude='out/' --exclude='cache/' --exclude='dist/' --exclude='.DS_Store' \
+  --exclude='CLAUDE.md' --exclude='PROGRESS.md' --exclude='70017_1_spec.pdf' --exclude='*.recovery.lock' ./ <staging>/
+(cd <staging> && zip -qr -X <repo>/dist/70017_submission.zip .)
+```
 
 ## Repo workflow
 
