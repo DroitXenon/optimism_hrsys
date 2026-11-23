@@ -1,13 +1,17 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.24;
 
-import {Test} from "forge-std/Test.sol";
+import {Test, Vm} from "forge-std/Test.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {HumanResources} from "../src/HumanResources.sol";
 import {IHumanResources} from "../src/IHumanResources.sol";
+import {Errors} from "@openzeppelin/contracts/utils/Errors.sol";
+import {AggregatorV3Interface} from "../src/interfaces/AggregatorV3Interface.sol";
 
 contract HumanResourcesTest is Test {
     IERC20 constant USDC = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85);
+    IERC20 constant WETH = IERC20(0x4200000000000000000000000000000000000006);
+    address constant ETH_USD_FEED = 0x13e3Ee699D1909E989722E753853AE30b17e08c5;
 
     HumanResources hr;
     address manager = makeAddr("manager");
@@ -31,6 +35,28 @@ contract HumanResourcesTest is Test {
     function _terminate(address employee) internal {
         vm.prank(manager);
         hr.terminateEmployee(employee);
+    }
+
+    function _switchToEth(address employee) internal {
+        vm.prank(employee);
+        hr.switchCurrency();
+    }
+
+    function _ethPrice() internal view returns (uint256) {
+        (, int256 price,,,) = AggregatorV3Interface(ETH_USD_FEED).latestRoundData();
+        return uint256(price);
+    }
+
+    function _usdToEth(uint256 usd) internal view returns (uint256) {
+        return (usd * 1e8) / _ethPrice();
+    }
+
+    function _mockEthPrice(int256 price) internal {
+        vm.mockCall(
+            ETH_USD_FEED,
+            abi.encodeWithSelector(AggregatorV3Interface.latestRoundData.selector),
+            abi.encode(uint80(1), price, block.timestamp, block.timestamp, uint80(1))
+        );
     }
 
     // ---------------- hrManager ----------------
@@ -257,5 +283,168 @@ contract HumanResourcesTest is Test {
         assertEq(hr.getActiveEmployeeCount(), 1);
         _register(alice, WEEKLY);
         assertEq(hr.getActiveEmployeeCount(), 2);
+    }
+
+    // ---------------- ETH payouts (oracle + AMM) ----------------
+
+    function test_SalaryAvailable_EthUsesOraclePrice() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        skip(1 weeks);
+        assertEq(hr.salaryAvailable(alice), _usdToEth(700e18));
+    }
+
+    function test_Withdraw_Eth_WithinSlippageOfOracle() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        skip(1 weeks);
+        uint256 expected = _usdToEth(700e18);
+
+        vm.recordLogs();
+        vm.prank(alice);
+        hr.withdrawSalary();
+
+        uint256 received = alice.balance;
+        assertGe(received, (expected * 98) / 100);
+        assertLe(received, (expected * 102) / 100);
+        assertEq(USDC.balanceOf(alice), 0);
+        assertEq(hr.salaryAvailable(alice), 0);
+        assertEq(USDC.balanceOf(address(hr)), 1_000_000e6 - 700e6);
+        // No ETH or WETH left behind in the contract
+        assertEq(address(hr).balance, 0);
+        assertEq(WETH.balanceOf(address(hr)), 0);
+
+        // SalaryWithdrawn reports the ETH amount actually paid
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        Vm.Log memory last = logs[logs.length - 1];
+        assertEq(last.topics[0], IHumanResources.SalaryWithdrawn.selector);
+        assertEq(last.topics[1], bytes32(uint256(uint160(alice))));
+        (bool isEth, uint256 amount) = abi.decode(last.data, (bool, uint256));
+        assertTrue(isEth);
+        assertEq(amount, received);
+    }
+
+    function test_Withdraw_Eth_LargeAmount() public {
+        _register(alice, 50_000e18);
+        _switchToEth(alice);
+        skip(1 weeks);
+        uint256 expected = _usdToEth(50_000e18);
+        vm.prank(alice);
+        hr.withdrawSalary();
+        assertGe(alice.balance, (expected * 98) / 100);
+    }
+
+    function test_Withdraw_Eth_RevertsOnExcessiveSlippage() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        skip(1 weeks);
+
+        // Oracle says ETH is 5% cheaper than the pool price -> pool returns ~5% less ETH than expected
+        _mockEthPrice(int256((_ethPrice() * 95) / 100));
+        vm.prank(alice);
+        vm.expectRevert(bytes("Too little received"));
+        hr.withdrawSalary();
+
+        // Revert leaves the balance intact
+        vm.clearMockedCalls();
+        assertEq(hr.salaryAvailable(alice), _usdToEth(700e18));
+    }
+
+    function test_Withdraw_Eth_SucceedsWithinTolerance() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        skip(1 weeks);
+
+        // 1% oracle deviation is inside the 2% bound
+        _mockEthPrice(int256((_ethPrice() * 99) / 100));
+        vm.prank(alice);
+        hr.withdrawSalary();
+        assertGt(alice.balance, 0);
+    }
+
+    function test_Withdraw_Eth_RevertsOnInvalidOraclePrice() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        skip(1 weeks);
+        _mockEthPrice(0);
+        vm.prank(alice);
+        vm.expectRevert(HumanResources.InvalidOraclePrice.selector);
+        hr.withdrawSalary();
+    }
+
+    function test_SwitchCurrency_AccruedPaidInNewCurrency() public {
+        _register(alice, WEEKLY);
+        skip(1 weeks); // accrued while in USDC mode
+        _switchToEth(alice);
+        vm.prank(alice);
+        hr.withdrawSalary();
+        assertEq(USDC.balanceOf(alice), 0);
+        assertGe(alice.balance, (_usdToEth(700e18) * 98) / 100);
+
+        _switchToEth(alice); // back to USDC
+        skip(1 days);
+        vm.prank(alice);
+        hr.withdrawSalary();
+        assertEq(USDC.balanceOf(alice), 100e6);
+    }
+
+    function test_Withdraw_Eth_AfterTermination() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        skip(1 weeks);
+        _terminate(alice);
+        skip(1 weeks);
+        assertEq(hr.salaryAvailable(alice), _usdToEth(700e18));
+        vm.prank(alice);
+        hr.withdrawSalary();
+        assertGt(alice.balance, 0);
+        assertEq(hr.salaryAvailable(alice), 0);
+    }
+
+    function test_Withdraw_Eth_NothingAvailable_NoSwap() public {
+        _register(alice, WEEKLY);
+        _switchToEth(alice);
+        vm.prank(alice);
+        hr.withdrawSalary();
+        assertEq(alice.balance, 0);
+    }
+
+    function test_Withdraw_Eth_ReentrancyBlocked() public {
+        ReentrantEmployee attacker = new ReentrantEmployee(hr);
+        _register(address(attacker), WEEKLY);
+        vm.prank(address(attacker));
+        hr.switchCurrency();
+        skip(1 weeks);
+
+        // Re-entering withdrawSalary from receive() trips the guard, so the ETH transfer
+        // and the whole withdrawal revert
+        vm.expectRevert(Errors.FailedCall.selector);
+        attacker.attack();
+        assertEq(address(attacker).balance, 0);
+        assertEq(hr.salaryAvailable(address(attacker)), _usdToEth(700e18));
+    }
+
+    function test_Receive_RejectsEthFromNonWeth() public {
+        vm.deal(stranger, 1 ether);
+        vm.prank(stranger);
+        (bool ok,) = address(hr).call{value: 1 ether}("");
+        assertFalse(ok);
+    }
+}
+
+/// @dev Employee contract that tries to withdraw again while receiving ETH
+contract ReentrantEmployee {
+    HumanResources immutable hr;
+
+    constructor(HumanResources hr_) {
+        hr = hr_;
+    }
+
+    function attack() external {
+        hr.withdrawSalary();
+    }
+
+    receive() external payable {
+        hr.withdrawSalary();
     }
 }

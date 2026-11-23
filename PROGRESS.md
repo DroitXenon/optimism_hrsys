@@ -1,6 +1,6 @@
 # Coursework Progress — 70017 HumanResources on Optimism
 
-Last updated: 2026-11-20
+Last updated: 2026-11-23
 
 ## Goals
 
@@ -14,7 +14,7 @@ Last updated: 2026-11-20
 |---|---|---|
 | 1 | Project setup | ✅ Done |
 | 2 | Core contract (no swaps) | ✅ Done |
-| 3 | Oracle + AMM integration | ⬜ Not started |
+| 3 | Oracle + AMM integration | ✅ Done |
 | 4 | Fork test suite | ⬜ Not started |
 | 5 | Review & hardening | ⬜ Not started |
 | 6 | Deploy & on-chain submit | ⬜ Not started |
@@ -40,12 +40,13 @@ Last updated: 2026-11-20
 - [x] Views: `salaryAvailable`, `hrManager`, `getActiveEmployeeCount`, `getEmployeeInfo`
 - [x] Core tests `test/HumanResources.t.sol` (23 passing incl. fuzz); ETH paths stubbed until Stage 3
 
-### 3. Oracle + AMM integration
-- [ ] USD → ETH conversion via Chainlink (8 dp)
-- [ ] USDC → WETH swap via `exactInputSingle`, `amountOutMinimum` = 98% of oracle quote
-- [ ] Decide pool fee tier (confirm on fork)
-- [ ] Unwrap WETH, `receive()`, send ETH via `call`; CEI + `nonReentrant`
-- [ ] `salaryAvailable` in ETH mode
+### 3. Oracle + AMM integration ✅
+- [x] USD → ETH conversion via Chainlink (8 dp); reverts `InvalidOraclePrice` on price ≤ 0
+- [x] USDC → WETH swap via `exactInputSingle`, `amountOutMinimum` = 98% of oracle quote
+- [x] Pool fee tier: 0.3% (3000) — quoted within 0.7% of oracle for 1k–50k USDC; 0.05% fails 2% bound at ≥10k
+- [x] Unwrap WETH, `receive()` (WETH only), send ETH via `Address.sendValue`; balance marked paid before calls + `nonReentrant`
+- [x] `salaryAvailable` in ETH mode
+- [x] ETH tests: oracle-based view, payout within bounds, large swap, slippage revert, 1% tolerance, invalid price, currency switch, post-termination, reentrancy attack, receive guard (37 tests total)
 
 ### 4. Fork test suite
 - [ ] Access control reverts (`NotAuthorized`) for every restricted function

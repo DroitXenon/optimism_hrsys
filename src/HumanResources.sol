@@ -3,8 +3,12 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {IHumanResources} from "./IHumanResources.sol";
+import {AggregatorV3Interface} from "./interfaces/AggregatorV3Interface.sol";
+import {ISwapRouter} from "./interfaces/ISwapRouter.sol";
+import {IWETH} from "./interfaces/IWETH.sol";
 
 /// @title HumanResources
 /// @notice HR payment system on Optimism: the HR manager registers and terminates employees,
@@ -24,9 +28,24 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
     }
 
     IERC20 public constant USDC = IERC20(0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85);
+    IWETH public constant WETH = IWETH(0x4200000000000000000000000000000000000006);
+    AggregatorV3Interface public constant ETH_USD_FEED =
+        AggregatorV3Interface(0x13e3Ee699D1909E989722E753853AE30b17e08c5);
+    ISwapRouter public constant SWAP_ROUTER = ISwapRouter(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+
+    /// @dev Uniswap V3 USDC/WETH 0.3% pool: deepest liquidity on Optimism, stays well within
+    /// the slippage bound for large swaps where the 0.05% pool does not
+    uint24 private constant POOL_FEE = 3000;
+
+    /// @dev Swap must return at least 98% of the oracle-implied ETH amount
+    uint256 private constant MIN_OUT_BPS = 9800;
+    uint256 private constant BPS = 10_000;
 
     /// @dev USD amounts have 18 decimals, USDC has 6
     uint256 private constant USD_TO_USDC = 1e12;
+
+    /// @notice Raised if the oracle reports a non-positive ETH/USD price
+    error InvalidOraclePrice();
 
     address public immutable hrManager;
 
@@ -40,6 +59,11 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
 
     constructor(address hrManager_) {
         hrManager = hrManager_;
+    }
+
+    /// @dev Only accepts ETH from WETH when unwrapping swap proceeds
+    receive() external payable {
+        if (msg.sender != address(WETH)) revert NotAuthorized();
     }
 
     // ------------------------------------------------------------------
@@ -159,13 +183,44 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
         emit SalaryWithdrawn(msg.sender, false, usdcAmount);
     }
 
-    /// @dev Implemented in Stage 3 (Chainlink price + Uniswap swap)
-    function _withdrawEth(Employee storage) private pure {
-        revert("ETH payout not implemented");
+    /// @dev Swaps the pending salary (rounded down to whole USDC units) to WETH on Uniswap V3,
+    /// unwraps it and sends ETH. The balance is marked paid before any external call, and the swap
+    /// reverts if it returns less than 98% of the ETH the Chainlink price implies.
+    function _withdrawEth(Employee storage e) private {
+        uint256 usdcAmount = _pendingUsd(e) / USD_TO_USDC;
+        if (usdcAmount == 0) return;
+
+        // forge-lint: disable-next-line(divide-before-multiply)
+        uint256 usdAmount = usdcAmount * USD_TO_USDC;
+        e.paidUsd += usdAmount;
+
+        uint256 minEthOut = (_usdToEth(usdAmount) * MIN_OUT_BPS) / BPS;
+
+        USDC.forceApprove(address(SWAP_ROUTER), usdcAmount);
+        uint256 ethAmount = SWAP_ROUTER.exactInputSingle(
+            ISwapRouter.ExactInputSingleParams({
+                tokenIn: address(USDC),
+                tokenOut: address(WETH),
+                fee: POOL_FEE,
+                recipient: address(this),
+                deadline: block.timestamp,
+                amountIn: usdcAmount,
+                amountOutMinimum: minEthOut,
+                sqrtPriceLimitX96: 0
+            })
+        );
+
+        WETH.withdraw(ethAmount);
+        Address.sendValue(payable(msg.sender), ethAmount);
+
+        emit SalaryWithdrawn(msg.sender, true, ethAmount);
     }
 
-    /// @dev Implemented in Stage 3 (Chainlink price)
-    function _usdToEth(uint256) private pure returns (uint256) {
-        revert("ETH payout not implemented");
+    /// @dev Converts USD (18 decimals) to ETH (18 decimals) at the Chainlink ETH/USD price (8 decimals)
+    function _usdToEth(uint256 usdAmount) private view returns (uint256) {
+        (, int256 price,,,) = ETH_USD_FEED.latestRoundData();
+        if (price <= 0) revert InvalidOraclePrice();
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return (usdAmount * 10 ** ETH_USD_FEED.decimals()) / uint256(price);
     }
 }

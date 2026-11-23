@@ -23,8 +23,8 @@ Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 20
 ## Architecture
 
 - `src/HumanResources.sol` — the single deployed contract; inherits `IHumanResources` and OZ `ReentrancyGuard`, uses `SafeERC20`. `src/interfaces/` holds minimal Chainlink/Uniswap/WETH interfaces (don't pull in full Uniswap libs).
-- **Accounting model:** per employee, `carriedUsd` (unpaid balance from earlier employment periods) + `earned` (computed fresh from `employedSince` to now/`terminatedAt` in a single division) − `paidUsd` (paid in the current period). Re-registration folds the pending balance into `carriedUsd` and zeroes `paidUsd`. Withdrawals add to `paidUsd` rather than checkpointing, so frequent withdrawals lose no precision; sub-USDC dust stays unpaid for later. Keep this model when adding the ETH path.
-- `_withdrawEth` / `_usdToEth` are stubs that revert until Stage 3 (oracle + swap) lands.
+- **Accounting model:** per employee, `carriedUsd` (unpaid balance from earlier employment periods) + `earned` (computed fresh from `employedSince` to now/`terminatedAt` in a single division) − `paidUsd` (paid in the current period). Re-registration folds the pending balance into `carriedUsd` and zeroes `paidUsd`. Withdrawals add to `paidUsd` rather than checkpointing, so frequent withdrawals lose no precision; sub-USDC dust stays unpaid for later.
+- **ETH path:** `_withdrawEth` rounds pending USD to whole USDC units, adds them to `paidUsd`, then swaps on the Uniswap V3 USDC/WETH **0.3%** pool (chosen over 0.05%, which exceeds 2% slippage at ≥10k USDC), unwraps WETH and pays with `Address.sendValue`. `receive()` only accepts ETH from WETH. `InvalidOraclePrice` is the one non-interface error.
 - Tests: every test contract forks Optimism in `setUp()` (so all tests need `.env`), deploys a fresh `HumanResources`, and funds it with `deal(USDC, hr, ...)`. Reuse the `_register` / `_terminate` helpers in `test/HumanResources.t.sol`. `test/ForkSetup.t.sol` is a smoke test that the external addresses resolve at `FORK_BLOCK`.
 
 ## Hard constraints
