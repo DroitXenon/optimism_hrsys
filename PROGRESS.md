@@ -13,7 +13,7 @@ Last updated: 2026-11-20
 | # | Stage | Status |
 |---|---|---|
 | 1 | Project setup | ✅ Done |
-| 2 | Core contract (no swaps) | ⬜ Not started |
+| 2 | Core contract (no swaps) | ✅ Done |
 | 3 | Oracle + AMM integration | ⬜ Not started |
 | 4 | Fork test suite | ⬜ Not started |
 | 5 | Review & hardening | ⬜ Not started |
@@ -29,15 +29,16 @@ Last updated: 2026-11-20
 - [x] Checked USDC/WETH pools: 0.3% tier has most liquidity at fork block
 - [x] `CLAUDE.md`
 
-### 2. Core contract (no swaps)
-- [ ] `HumanResources` with immutable `hrManager` set in constructor
-- [ ] Employee storage: salary, employedSince, terminatedAt, lastAccrual, accruedUsd, isEth
-- [ ] Internal accrual checkpoint
-- [ ] `registerEmployee` (incl. re-registration rules, preference reset to USDC)
-- [ ] `terminateEmployee` (stop accrual, keep balance)
-- [ ] `switchCurrency` (active only)
-- [ ] `withdrawSalary` — USDC path (18 → 6 decimals)
-- [ ] Views: `salaryAvailable`, `hrManager`, `getActiveEmployeeCount`, `getEmployeeInfo`
+### 2. Core contract (no swaps) ✅
+- [x] `HumanResources` with immutable `hrManager` set in constructor
+- [x] Employee storage: salary, employedSince, terminatedAt, carriedUsd, paidUsd, isEth
+- [x] Accrual from `employedSince` in one division (no per-withdrawal rounding loss)
+- [x] `registerEmployee` (incl. re-registration rules, preference reset to USDC)
+- [x] `terminateEmployee` (stop accrual, keep balance)
+- [x] `switchCurrency` (active only)
+- [x] `withdrawSalary` — USDC path (18 → 6 decimals)
+- [x] Views: `salaryAvailable`, `hrManager`, `getActiveEmployeeCount`, `getEmployeeInfo`
+- [x] Core tests `test/HumanResources.t.sol` (23 passing incl. fuzz); ETH paths stubbed until Stage 3
 
 ### 3. Oracle + AMM integration
 - [ ] USD → ETH conversion via Chainlink (8 dp)

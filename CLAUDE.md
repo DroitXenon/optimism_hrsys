@@ -18,6 +18,15 @@ forge fmt                                    # format
 
 `.env` (gitignored; template in `.env.example`) provides `RPC_URL` and `FORK_BLOCK`. Tests must read these via `vm.envString("RPC_URL")` / `vm.envUint("FORK_BLOCK")` and fork with `vm.createSelectFork` — never hard-code the RPC URL. Use an Alchemy/Infura URL locally (public endpoint is slow/rate-limited), but the submitted `.env` must contain `RPC_URL=https://mainnet.optimism.io`.
 
+Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 200 runs; OpenZeppelin v5.1 via `@openzeppelin/contracts/` remapping (`lib/` are git submodules). `script/` is empty and `README.md` is still Foundry boilerplate; both are written in Stages 6–7.
+
+## Architecture
+
+- `src/HumanResources.sol` — the single deployed contract; inherits `IHumanResources` and OZ `ReentrancyGuard`, uses `SafeERC20`. `src/interfaces/` holds minimal Chainlink/Uniswap/WETH interfaces (don't pull in full Uniswap libs).
+- **Accounting model:** per employee, `carriedUsd` (unpaid balance from earlier employment periods) + `earned` (computed fresh from `employedSince` to now/`terminatedAt` in a single division) − `paidUsd` (paid in the current period). Re-registration folds the pending balance into `carriedUsd` and zeroes `paidUsd`. Withdrawals add to `paidUsd` rather than checkpointing, so frequent withdrawals lose no precision; sub-USDC dust stays unpaid for later. Keep this model when adding the ETH path.
+- `_withdrawEth` / `_usdToEth` are stubs that revert until Stage 3 (oracle + swap) lands.
+- Tests: every test contract forks Optimism in `setUp()` (so all tests need `.env`), deploys a fresh `HumanResources`, and funds it with `deal(USDC, hr, ...)`. Reuse the `_register` / `_terminate` helpers in `test/HumanResources.t.sol`. `test/ForkSetup.t.sol` is a smoke test that the external addresses resolve at `FORK_BLOCK`.
+
 ## Hard constraints
 
 - Do **not** change the `IHumanResources` interface (signatures, errors, events). Do not add custom events.
