@@ -47,6 +47,9 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
     /// @notice Raised if the oracle reports a non-positive ETH/USD price
     error InvalidOraclePrice();
 
+    /// @notice Raised if the contract is deployed with the zero address as HR manager
+    error InvalidHrManager();
+
     address public immutable hrManager;
 
     uint256 private _activeEmployeeCount;
@@ -57,7 +60,9 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
         _;
     }
 
+    /// @param hrManager_ the only address allowed to register and terminate employees; cannot be changed later
     constructor(address hrManager_) {
+        if (hrManager_ == address(0)) revert InvalidHrManager();
         hrManager = hrManager_;
     }
 
@@ -196,7 +201,10 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
 
         uint256 minEthOut = (_usdToEth(usdAmount) * MIN_OUT_BPS) / BPS;
 
+        // Linter reentrancy findings below are false positives: withdrawSalary holds nonReentrant
+        // for the whole call, and the employee's balance is already marked paid above.
         USDC.forceApprove(address(SWAP_ROUTER), usdcAmount);
+        // forge-lint: disable-start(reentrancy-no-eth)
         uint256 ethAmount = SWAP_ROUTER.exactInputSingle(
             ISwapRouter.ExactInputSingleParams({
                 tokenIn: address(USDC),
@@ -209,15 +217,21 @@ contract HumanResources is IHumanResources, ReentrancyGuard {
                 sqrtPriceLimitX96: 0
             })
         );
+        // forge-lint: disable-end(reentrancy-no-eth)
 
+        // forge-lint: disable-next-line(reentrancy-no-eth)
         WETH.withdraw(ethAmount);
         Address.sendValue(payable(msg.sender), ethAmount);
 
+        // The ETH amount is only known after the swap, so the event follows the external calls
+        // forge-lint: disable-next-line(reentrancy-events)
         emit SalaryWithdrawn(msg.sender, true, ethAmount);
     }
 
     /// @dev Converts USD (18 decimals) to ETH (18 decimals) at the Chainlink ETH/USD price (8 decimals)
     function _usdToEth(uint256 usdAmount) private view returns (uint256) {
+        // Round metadata is ignored: the spec does not require staleness checks
+        // forge-lint: disable-next-line(unused-return)
         (, int256 price,,,) = ETH_USD_FEED.latestRoundData();
         if (price <= 0) revert InvalidOraclePrice();
         // forge-lint: disable-next-line(unsafe-typecast)

@@ -16,7 +16,7 @@ Last updated: 2026-11-23
 | 2 | Core contract (no swaps) | Done |
 | 3 | Oracle + AMM integration | Done |
 | 4 | Fork test suite | Done |
-| 5 | Review & hardening | Not started |
+| 5 | Review & hardening | Done |
 | 6 | Deploy & on-chain submit | Not started |
 | 7 | Package off-chain submission | Not started |
 
@@ -61,10 +61,14 @@ Last updated: 2026-11-23
 - [x] Fuzz: formula, split withdrawals pay exact total, termination freezes balance, re-registration carry-over, ETH conversion, access control (off-fork)
 - [x] 60 tests passing on the public RPC with no fork cache (`forge test --no-storage-caching`)
 
-### 5. Review & hardening
-- [ ] Re-check every spec requirement
-- [ ] Decimal scaling audit at each boundary
-- [ ] No test imports in `src/`; `forge fmt`
+### 5. Review & hardening (done)
+- [x] Line-by-line check of every spec requirement (sections 1-6 and the access-control note) against the contract: no gaps found
+- [x] Decimal scaling checked at each boundary (USD 18 dp, USDC 6 dp, Chainlink 8 dp, ETH 18 dp)
+- [x] `src/` imports only OpenZeppelin and local interfaces; `forge fmt --check` clean
+- [x] Constructor rejects a zero `hrManager` (`InvalidHrManager`) with test
+- [x] All linter warnings resolved: zero-check fixed; reentrancy/unused-return false positives suppressed with reasons
+- [x] Coverage of `src/HumanResources.sol`: 100% lines, statements, branches, functions
+- [x] 61 tests passing, incl. cold-cache run on public RPC
 
 ### 6. Deploy & on-chain submit
 - [ ] Claim faucet ETH (wallet: _TBD_)

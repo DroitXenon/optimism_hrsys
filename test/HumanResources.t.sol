@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.24;
 
+import {HumanResources} from "../src/HumanResources.sol";
 import {IHumanResources} from "../src/IHumanResources.sol";
 import {HumanResourcesBase} from "./utils/HumanResourcesBase.sol";
 
@@ -10,6 +11,11 @@ contract HumanResourcesTest is HumanResourcesBase {
 
     function test_HrManager() public view {
         assertEq(hr.hrManager(), manager);
+    }
+
+    function test_Constructor_RevertsOnZeroHrManager() public {
+        vm.expectRevert(HumanResources.InvalidHrManager.selector);
+        new HumanResources(address(0));
     }
 
     function test_HrManager_IsNotAnEmployee() public {

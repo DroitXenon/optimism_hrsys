@@ -15,6 +15,7 @@ forge test --match-test test_Name -vvv       # single test
 forge test --match-contract ForkSetupTest    # single test contract
 forge fmt                                    # format
 forge test --no-storage-caching              # cold-cache run, as the marker will see it
+forge coverage --report summary --no-match-coverage "test|lib"   # contract coverage (currently 100%)
 ```
 
 `.env` (gitignored; template in `.env.example`) provides `RPC_URL` and `FORK_BLOCK`. Tests must read these via `vm.envString("RPC_URL")` / `vm.envUint("FORK_BLOCK")` and fork with `vm.createSelectFork` — never hard-code the RPC URL. Use an Alchemy/Infura URL locally (public endpoint is slow/rate-limited), but the submitted `.env` must contain `RPC_URL=https://mainnet.optimism.io`.
@@ -25,7 +26,7 @@ Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 20
 
 - `src/HumanResources.sol` — the single deployed contract; inherits `IHumanResources` and OZ `ReentrancyGuard`, uses `SafeERC20`. `src/interfaces/` holds minimal Chainlink/Uniswap/WETH interfaces (don't pull in full Uniswap libs).
 - **Accounting model:** per employee, `carriedUsd` (unpaid balance from earlier employment periods) + `earned` (computed fresh from `employedSince` to now/`terminatedAt` in a single division) − `paidUsd` (paid in the current period). Re-registration folds the pending balance into `carriedUsd` and zeroes `paidUsd`. Withdrawals add to `paidUsd` rather than checkpointing, so frequent withdrawals lose no precision; sub-USDC dust stays unpaid for later.
-- **ETH path:** `_withdrawEth` rounds pending USD to whole USDC units, adds them to `paidUsd`, then swaps on the Uniswap V3 USDC/WETH **0.3%** pool (chosen over 0.05%, which exceeds 2% slippage at ≥10k USDC), unwraps WETH and pays with `Address.sendValue`. `receive()` only accepts ETH from WETH. `InvalidOraclePrice` is the one non-interface error.
+- **ETH path:** `_withdrawEth` rounds pending USD to whole USDC units, adds them to `paidUsd`, then swaps on the Uniswap V3 USDC/WETH **0.3%** pool (chosen over 0.05%, which exceeds 2% slippage at ≥10k USDC), unwraps WETH and pays with `Address.sendValue`. `receive()` only accepts ETH from WETH. Non-interface errors: `InvalidOraclePrice` (feed price <= 0) and `InvalidHrManager` (zero address in constructor).
 - Tests: fork suites inherit `test/utils/HumanResourcesBase.sol`, which forks Optimism in `setUp()`, deploys a fresh `HumanResources`, funds it with `deal(USDC, ...)` and provides `_register` / `_terminate` / `_switchCurrency` / `_withdraw` / `_mockEthPrice` helpers. Suites: `HumanResources.t.sol` (core + USDC), `HumanResourcesEth.t.sol` (oracle/swap/reentrancy), `HumanResourcesFuzz.t.sol`, `ForkSetup.t.sol` (address smoke test).
   - Test accounts use `makeAddr("hr-test-*")`; generic labels like `"bob"` map to real Optimism accounts (an EIP-7702 sweeper), and the base asserts accounts are fresh.
   - Tests are marked using the rate-limited public RPC: never fuzz random addresses on a fork (`HumanResourcesAccessFuzzTest` runs off-fork for that reason). Check with `forge test --no-storage-caching`.
