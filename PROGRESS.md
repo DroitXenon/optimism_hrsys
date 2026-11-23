@@ -17,7 +17,7 @@ Last updated: 2026-11-23
 | 3 | Oracle + AMM integration | Done |
 | 4 | Fork test suite | Done |
 | 5 | Review & hardening | Done |
-| 6 | Deploy & on-chain submit | Not started |
+| 6 | Deploy & on-chain submit | Done |
 | 7 | Package off-chain submission | Not started |
 
 ### 1. Project setup (done)
@@ -70,11 +70,16 @@ Last updated: 2026-11-23
 - [x] Coverage of `src/HumanResources.sol`: 100% lines, statements, branches, functions
 - [x] 61 tests passing, incl. cold-cache run on public RPC
 
-### 6. Deploy & on-chain submit
-- [ ] Claim faucet ETH (wallet: _TBD_)
-- [ ] Deploy `HumanResources` to Optimism — **do not verify**
-- [ ] Call `submit(<HR address>)` from the same wallet
-- [ ] Write `deployed-address.txt` and `submit-transaction.txt`
+### 6. Deploy & on-chain submit (done)
+- [x] `script/Deploy.s.sol` (hrManager = deployer unless `HR_MANAGER` set) and `script/Submit.s.sol` (refuses addresses without HumanResources code)
+- [x] Full deploy + submit rehearsal on a local Anvil fork of Optimism
+- [x] Faucet ETH claimed; key in Foundry keystore as `hr-deployer` (wallet `0x99B868bB39e51A8de93EA31b375Ab22D4Df34B16`)
+- [x] Deployed `HumanResources` at `0xCac78A03Eefb0BC53f8c728e373A9Bba8d38476c` (block 159915492, tx `0xfcb08e24...f7f5`), not verified; on-chain bytecode matches local build
+- [x] `submit` tx `0x3a8e8a07380d516d855810de45c1e030d8267819167cfc306cc661b6a5ab2f09` (block 159915548) from the same wallet, success
+- [x] `deployed-address.txt` and `submit-transaction.txt` written
+- [x] Live smoke test on a fork of the deployed contract: USDC and ETH withdrawals work (ETH 0.31% under oracle)
+
+**Any change to `src/` from here on requires redeploying and resubmitting.**
 
 ### 7. Package off-chain submission
 - [ ] `README.md`: per-function docs + AMM/oracle integration summary

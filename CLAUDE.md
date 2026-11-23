@@ -20,7 +20,9 @@ forge coverage --report summary --no-match-coverage "test|lib"   # contract cove
 
 `.env` (gitignored; template in `.env.example`) provides `RPC_URL` and `FORK_BLOCK`. Tests must read these via `vm.envString("RPC_URL")` / `vm.envUint("FORK_BLOCK")` and fork with `vm.createSelectFork` — never hard-code the RPC URL. Use an Alchemy/Infura URL locally (public endpoint is slow/rate-limited), but the submitted `.env` must contain `RPC_URL=https://mainnet.optimism.io`.
 
-Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 200 runs; OpenZeppelin v5.1 via `@openzeppelin/contracts/` remapping (`lib/` are git submodules). `script/` is empty and `README.md` is still Foundry boilerplate; both are written in Stages 6–7.
+Build config (`foundry.toml`): solc 0.8.24, `evm_version = cancun`, optimizer 200 runs; OpenZeppelin v5.1 via `@openzeppelin/contracts/` remapping (`lib/` are git submodules). `README.md` is still Foundry boilerplate (written in Stage 7).
+
+Deployment: `script/Deploy.s.sol` (hrManager = deployer unless `HR_MANAGER` is set) and `script/Submit.s.sol` (`HR_CONTRACT=<addr>`), both run with `--account hr-deployer` (Foundry keystore). Never pass `--verify`. Rehearse on `anvil --fork-url $RPC_URL` first; that fork reports chain ID 10, so delete `broadcast/` afterwards to avoid confusing it with the real deployment.
 
 ## Architecture
 
