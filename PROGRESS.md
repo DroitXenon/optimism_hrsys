@@ -12,15 +12,15 @@ Last updated: 2026-11-23
 
 | # | Stage | Status |
 |---|---|---|
-| 1 | Project setup | ✅ Done |
-| 2 | Core contract (no swaps) | ✅ Done |
-| 3 | Oracle + AMM integration | ✅ Done |
-| 4 | Fork test suite | ⬜ Not started |
-| 5 | Review & hardening | ⬜ Not started |
-| 6 | Deploy & on-chain submit | ⬜ Not started |
-| 7 | Package off-chain submission | ⬜ Not started |
+| 1 | Project setup | Done |
+| 2 | Core contract (no swaps) | Done |
+| 3 | Oracle + AMM integration | Done |
+| 4 | Fork test suite | Not started |
+| 5 | Review & hardening | Not started |
+| 6 | Deploy & on-chain submit | Not started |
+| 7 | Package off-chain submission | Not started |
 
-### 1. Project setup ✅
+### 1. Project setup (done)
 - [x] Foundry project, `forge-std` v1.17.0, OpenZeppelin v5.1.0
 - [x] `src/IHumanResources.sol` (unchanged ABI)
 - [x] Minimal interfaces: Chainlink `AggregatorV3Interface`, Uniswap `ISwapRouter`, `IWETH`
@@ -29,7 +29,7 @@ Last updated: 2026-11-23
 - [x] Checked USDC/WETH pools: 0.3% tier has most liquidity at fork block
 - [x] `CLAUDE.md`
 
-### 2. Core contract (no swaps) ✅
+### 2. Core contract (no swaps) (done)
 - [x] `HumanResources` with immutable `hrManager` set in constructor
 - [x] Employee storage: salary, employedSince, terminatedAt, carriedUsd, paidUsd, isEth
 - [x] Accrual from `employedSince` in one division (no per-withdrawal rounding loss)
@@ -40,7 +40,7 @@ Last updated: 2026-11-23
 - [x] Views: `salaryAvailable`, `hrManager`, `getActiveEmployeeCount`, `getEmployeeInfo`
 - [x] Core tests `test/HumanResources.t.sol` (23 passing incl. fuzz); ETH paths stubbed until Stage 3
 
-### 3. Oracle + AMM integration ✅
+### 3. Oracle + AMM integration (done)
 - [x] USD → ETH conversion via Chainlink (8 dp); reverts `InvalidOraclePrice` on price ≤ 0
 - [x] USDC → WETH swap via `exactInputSingle`, `amountOutMinimum` = 98% of oracle quote
 - [x] Pool fee tier: 0.3% (3000) — quoted within 0.7% of oracle for 1k–50k USDC; 0.05% fails 2% bound at ≥10k
